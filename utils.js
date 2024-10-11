@@ -145,8 +145,10 @@ void main() {
 
 function getChatGPTModelViewMatrix() {
     const transformationMatrix = new Float32Array([
-        // you should paste the response of the chatGPT here:
-
+        0.1767767, -0.3061862, 0.3535534, 0.3,
+        0.4330127, 0.1767767, -0.25, -0.25,
+        0.25, 0.4330127, 0.6123724, 0,
+        0, 0, 0, 1
     ]);
     return getTransposeMatrix(transformationMatrix);
 }
@@ -159,8 +161,24 @@ function getChatGPTModelViewMatrix() {
  * stated in transformation-prompt.txt
  */
 function getModelViewMatrix() {
-    // calculate the model view matrix by using the transformation
-    // methods and return the modelView matrix in this method
+    // Calculate translation matrix
+    const translationMatrix = createTranslationMatrix(0.3, -0.25, 0);
+
+    // Calculate scaling matrix
+    const scaleMatrix = createScaleMatrix(0.5, 0.5, 1);
+
+    // Calculate rotation matrices
+    const rotationX = createRotationMatrix_X(30 * Math.PI / 180);
+    const rotationY = createRotationMatrix_Y(45 * Math.PI / 180);
+    const rotationZ = createRotationMatrix_Z(60 * Math.PI / 180);
+
+    // Combine all transformations
+    let modelViewMatrix = multiplyMatrices(translationMatrix, scaleMatrix);
+    modelViewMatrix = multiplyMatrices(modelViewMatrix, rotationX);
+    modelViewMatrix = multiplyMatrices(modelViewMatrix, rotationY);
+    modelViewMatrix = multiplyMatrices(modelViewMatrix, rotationZ);
+
+    return new Float32Array(modelViewMatrix);
 }
 
 /**
@@ -174,6 +192,37 @@ function getModelViewMatrix() {
 function getPeriodicMovement(startTime) {
     // this metdo should return the model view matrix at the given time
     // to get a smooth animation
+    const currentTime = (Date.now() - startTime) / 1000; // Convert to seconds
+    const period = 10; // Total animation period in seconds
+    const halfPeriod = period / 2;
+    const t = (currentTime % period) / halfPeriod; // Normalized time (0 to 2)
+
+    // Initial matrix (identity matrix)
+    const initialMatrix = createIdentityMatrix();
+
+    // Target matrix (the result from getModelViewMatrix)
+    const targetMatrix = getModelViewMatrix();
+
+    let interpolatedMatrix;
+
+    if (t <= 1) {
+        // First half of the animation: transform from initial to target
+        interpolatedMatrix = interpolateMatrices(initialMatrix, targetMatrix, t);
+    } else {
+        // Second half of the animation: transform from target back to initial
+        interpolatedMatrix = interpolateMatrices(targetMatrix, initialMatrix, t - 1);
+    }
+
+    return interpolatedMatrix;
+}
+
+// Helper function to interpolate between two matrices
+function interpolateMatrices(matrixA, matrixB, t) {
+    const result = new Float32Array(16);
+    for (let i = 0; i < 16; i++) {
+        result[i] = matrixA[i] + (matrixB[i] - matrixA[i]) * t;
+    }
+    return result;
 }
 
 
