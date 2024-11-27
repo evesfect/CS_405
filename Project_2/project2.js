@@ -56,21 +56,22 @@ class MeshDrawer {
 		this.vertPosLoc = gl.getAttribLocation(this.prog, 'pos');
 		this.texCoordLoc = gl.getAttribLocation(this.prog, 'texCoord');
 
-
 		this.vertbuffer = gl.createBuffer();
 		this.texbuffer = gl.createBuffer();
 
 		this.numTriangles = 0;
 
-		// Initialize lighting-related variables
+		// Lighting setup
 		this.lightPosLoc = gl.getUniformLocation(this.prog, 'lightPos');
 		this.ambientLoc = gl.getUniformLocation(this.prog, 'ambient');
 		this.enableLightingLoc = gl.getUniformLocation(this.prog, 'enableLighting');
 
+		// Fixed, stable light position for showroom effect
+		this.fixedLightPosition = [1.0, 1.0, 5.0];
+
 		this.normalBuffer = gl.createBuffer();
 		this.normalLoc = gl.getAttribLocation(this.prog, 'normal');
 
-		// Initialize default values
 		this.lightingEnabled = false;
 		this.ambientLight = 0.1;
 		this.specularIntensityLoc = gl.getUniformLocation(this.prog, 'specularIntensity');
@@ -78,9 +79,17 @@ class MeshDrawer {
 		this.modelMatrixLoc = gl.getUniformLocation(this.prog, 'modelMatrix');
 
 		this.specularIntensity = 0.5;
-
-		// Add a new uniform for normal matrix
 		this.normalMatrixLoc = gl.getUniformLocation(this.prog, 'normalMatrix');
+
+		// Texture-related properties
+		this.textures = [];
+		this.textureUnits = [gl.TEXTURE0, gl.TEXTURE1];
+		this.textureLocations = [];
+
+		this.numTexturesLoc = gl.getUniformLocation(this.prog, 'numTextures');
+		for (let i = 0; i < 2; i++) {
+			this.textureLocations.push(gl.getUniformLocation(this.prog, `tex${i}`));
+		}
 	}
 
 	setMesh(vertPos, texCoords, normalCoords) {
@@ -119,22 +128,16 @@ class MeshDrawer {
 		gl.enableVertexAttribArray(this.normalLoc);
 		gl.vertexAttribPointer(this.normalLoc, 3, gl.FLOAT, false, 0, 0);
 
-		// Update light position
-		updateLightPos();
-		gl.uniform3f(this.lightPosLoc, lightX, lightY, 0);
+		// Light position 
+		gl.uniform3fv(this.lightPosLoc, this.fixedLightPosition);
 
-		// Set ambient light and enable lighting
+		// Lighting settings
 		gl.uniform1f(this.ambientLoc, this.ambientLight);
 		gl.uniform1i(this.enableLightingLoc, this.lightingEnabled);
-
-		// Set specular intensity
 		gl.uniform1f(this.specularIntensityLoc, this.specularIntensity);
+		gl.uniform3f(this.viewPosLoc, 0, 0, -transZ);
 
-		// Set view position (camera position)
-		gl.uniform3f(this.viewPosLoc, 0, 0, transZ);
-
-		// Calculate the model matrix from the transformation
-		// Extract the 3x3 rotation matrix from the MVP matrix
+		// Calculate model matrix ONLY from rotation/translation
 		const modelMatrix = [
 			trans[0], trans[1], trans[2], 0,
 			trans[4], trans[5], trans[6], 0,
@@ -143,7 +146,7 @@ class MeshDrawer {
 		];
 		gl.uniformMatrix4fv(this.modelMatrixLoc, false, modelMatrix);
 
-		// Calculate normal matrix (inverse transpose of model matrix)
+		// Normal matrix calculation
 		const normalMatrix = [
 			modelMatrix[0], modelMatrix[1], modelMatrix[2],
 			modelMatrix[4], modelMatrix[5], modelMatrix[6],
@@ -151,40 +154,53 @@ class MeshDrawer {
 		];
 		gl.uniformMatrix3fv(this.normalMatrixLoc, false, normalMatrix);
 
+		// Texture handling
+		for (let i = 0; i < this.textures.length; i++) {
+			gl.activeTexture(this.textureUnits[i]);
+			gl.bindTexture(gl.TEXTURE_2D, this.textures[i]);
+		}
+
+		gl.uniform1i(this.numTexturesLoc, this.textures.length);
+
+		updateLightPos();
 		gl.drawArrays(gl.TRIANGLES, 0, this.numTriangles);
 	}
 
 	// This method is called to set the texture of the mesh.
 	// The argument is an HTML IMG element containing the texture data.
-	setTexture(img) {
+	setTexture(img, index = 0) {
+		if (index >= this.textureUnits.length) {
+			console.error('Maximum number of textures reached');
+			return;
+		}
+
 		const texture = gl.createTexture();
+		gl.activeTexture(this.textureUnits[index]);
 		gl.bindTexture(gl.TEXTURE_2D, texture);
 
-		// You can set the texture image data using the following command.
 		gl.texImage2D(
 			gl.TEXTURE_2D,
 			0,
 			gl.RGB,
 			gl.RGB,
 			gl.UNSIGNED_BYTE,
-			img);
+			img
+		);
 
-		// Set texture parameters 
 		if (isPowerOf2(img.width) && isPowerOf2(img.height)) {
 			gl.generateMipmap(gl.TEXTURE_2D);
 		} else {
-			console.info("wrapping texture to edges");
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		}
 
+		this.textures[index] = texture;
+
 		gl.useProgram(this.prog);
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, texture);
-		const sampler = gl.getUniformLocation(this.prog, 'tex');
-		gl.uniform1i(sampler, 0);
+		gl.uniform1i(this.textureLocations[index], index);
+		gl.uniform1i(this.numTexturesLoc, this.textures.length);
 	}
 
 	showTexture(show) {
@@ -202,6 +218,16 @@ class MeshDrawer {
 
 	setSpecularLight(intensity) {
 		this.specularIntensity = intensity;
+	}
+
+	// New method to remove a texture
+	removeTexture(index) {
+		if (index < this.textures.length) {
+			gl.deleteTexture(this.textures[index]);
+			this.textures.splice(index, 1);
+			gl.useProgram(this.prog);
+			gl.uniform1i(this.numTexturesLoc, this.textures.length);
+		}
 	}
 }
 
@@ -235,12 +261,14 @@ const meshVS = `
 			varying vec2 v_texCoord; 
 			varying vec3 v_normal; 
 			varying vec3 v_fragPos;
+			varying mat3 v_normalMatrix;
 
 			void main()
 			{
 				v_texCoord = texCoord;
-				v_normal = normalMatrix * normal;
+				v_normal = normalize(normalMatrix * normal);
 				v_fragPos = vec3(modelMatrix * vec4(pos, 1.0));
+				v_normalMatrix = normalMatrix;
 
 				gl_Position = mvp * vec4(pos,1);
 			}`;
@@ -250,47 +278,58 @@ const meshVS = `
  * @Task2 : You should update the fragment shader to handle the lighting
  */
 const meshFS = `
-			precision mediump float;
+            precision mediump float;
+            
+            uniform bool showTex;
+            uniform bool enableLighting;
+            uniform sampler2D tex0;
+            uniform sampler2D tex1;
+            uniform int numTextures;
+            uniform vec3 color; 
+            uniform vec3 lightPos;
+            uniform float ambient;
+            uniform float specularIntensity;
+            uniform vec3 viewPos;
 
-			uniform bool showTex;
-			uniform bool enableLighting;
-			uniform sampler2D tex;
-			uniform vec3 color; 
-			uniform vec3 lightPos;
-			uniform float ambient;
-			uniform float specularIntensity;
-			uniform vec3 viewPos;
+            varying mat3 v_normalMatrix;
+            varying vec2 v_texCoord;
+            varying vec3 v_normal;
+            varying vec3 v_fragPos;
 
-			varying vec2 v_texCoord;
-			varying vec3 v_normal;
-			varying vec3 v_fragPos;
-
-			void main()
-			{
-				vec4 texColor = texture2D(tex, v_texCoord);
-				vec3 normal = normalize(v_normal);
-				vec3 lightDir = normalize(lightPos - v_fragPos);
-				
-				//Diffuse
-				float diff = max(dot(normal, lightDir), 0.0);
-				vec3 diffuse = diff * vec3(1.0, 1.0, 1.0); // White light
-
-				// Specular
-				vec3 viewDir = normalize(viewPos - v_fragPos);
-				vec3 reflectDir = reflect(-lightDir, normal);
-				float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-				vec3 specular = specularIntensity * spec * vec3(1.0, 1.0, 1.0);
-
-				vec3 lighting = ambient + diffuse + specular;
-
-				if (showTex && enableLighting) {
-					gl_FragColor = vec4(texColor.rgb * lighting, texColor.a);
-				} else if (showTex) {
-					gl_FragColor = texColor;
-				} else {
-					gl_FragColor = vec4(color * lighting, 1.0);
-				}
-			}`;
+            void main()
+            {
+                vec4 texColor = texture2D(tex0, v_texCoord);
+                vec3 N = normalize(v_normal);
+                
+                if (numTextures > 1) {
+                    // Get normal from normal map
+                    vec3 normalMap = texture2D(tex1, v_texCoord).rgb * 2.0 - 1.0;
+                    N = normalize(v_normal + normalMap);
+                }
+                
+                // Light calculations in world space
+                vec3 lightDir = normalize(lightPos - v_fragPos);
+                vec3 viewDir = normalize(viewPos - v_fragPos);
+                
+                // Diffuse
+                float diff = max(dot(N, lightDir), 0.0);
+                vec3 diffuse = diff * vec3(1.0, 1.0, 1.0);
+                
+                // Specular
+                vec3 reflectDir = reflect(-lightDir, N);
+                float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+                vec3 specular = specularIntensity * spec * vec3(1.0, 1.0, 1.0);
+                
+                vec3 lighting = ambient + diffuse + specular;
+                
+                if (showTex && enableLighting) {
+                    gl_FragColor = vec4(texColor.rgb * lighting, texColor.a);
+                } else if (showTex) {
+                    gl_FragColor = texColor;
+                } else {
+                    gl_FragColor = vec4(color * lighting, 1.0);
+                }
+            }`;
 
 // Light direction parameters for Task 2
 var lightX = 1;
@@ -308,5 +347,34 @@ function updateLightPos() {
 function SetSpecularLight(param) {
     meshDrawer.setSpecularLight(param.value / 100);
     DrawScene();
+}
+
+// Add these functions to handle texture uploads and toggles
+function uploadTexture(event, index) {
+	const file = event.target.files[0];
+	if (file) {
+		const reader = new FileReader();
+		reader.onload = function(e) {
+			const img = new Image();
+			img.onload = function() {
+				meshDrawer.setTexture(img, index);
+				DrawScene();			
+			}
+			img.src = e.target.result;
+		};
+		reader.readAsDataURL(file);
+	}
+}
+
+function toggleTexture(index, enabled) {
+	if (enabled) {
+		// Re-enable the texture if it exists
+		if (meshDrawer.textures[index]) {
+			meshDrawer.setTexture(meshDrawer.textures[index], index);
+		}
+	} else {
+		meshDrawer.removeTexture(index);
+	}
+	DrawScene();
 }
 ///////////////////////////////////////////////////////////////////////////////////

@@ -336,6 +336,21 @@ function LoadTexture( param )
 	DrawScene();
 }
 
+function LoadTexture2(param) {
+    if (param.files && param.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = new Image();
+            img.src = e.target.result;
+            img.onload = function() {
+                meshDrawer.setTexture(img, 1); // Index 1 for the second texture
+                DrawScene();
+            }
+        };
+        reader.readAsDataURL(param.files[0]);
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 </script>
 
