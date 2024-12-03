@@ -278,58 +278,58 @@ const meshVS = `
  * @Task2 : You should update the fragment shader to handle the lighting
  */
 const meshFS = `
-            precision mediump float;
-            
-            uniform bool showTex;
-            uniform bool enableLighting;
-            uniform sampler2D tex0;
-            uniform sampler2D tex1;
-            uniform int numTextures;
-            uniform vec3 color; 
-            uniform vec3 lightPos;
-            uniform float ambient;
-            uniform float specularIntensity;
-            uniform vec3 viewPos;
+	precision mediump float;
+	
+	uniform bool showTex;
+	uniform bool enableLighting;
+	uniform sampler2D tex0;
+	uniform sampler2D tex1;
+	uniform int numTextures;
+	uniform vec3 color; 
+	uniform vec3 lightPos;
+	uniform float ambient;
+	uniform float specularIntensity;
+	uniform vec3 viewPos;
 
-            varying mat3 v_normalMatrix;
-            varying vec2 v_texCoord;
-            varying vec3 v_normal;
-            varying vec3 v_fragPos;
+	varying mat3 v_normalMatrix;
+	varying vec2 v_texCoord;
+	varying vec3 v_normal;
+	varying vec3 v_fragPos;
 
-            void main()
-            {
-                vec4 texColor = texture2D(tex0, v_texCoord);
-                vec3 N = normalize(v_normal);
-                
-                if (numTextures > 1) {
-                    // Get normal from normal map
-                    vec3 normalMap = texture2D(tex1, v_texCoord).rgb * 2.0 - 1.0;
-                    N = normalize(v_normal + normalMap);
-                }
-                
-                // Light calculations in world space
-                vec3 lightDir = normalize(lightPos - v_fragPos);
-                vec3 viewDir = normalize(viewPos - v_fragPos);
-                
-                // Diffuse
-                float diff = max(dot(N, lightDir), 0.0);
-                vec3 diffuse = diff * vec3(1.0, 1.0, 1.0);
-                
-                // Specular
-                vec3 reflectDir = reflect(-lightDir, N);
-                float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-                vec3 specular = specularIntensity * spec * vec3(1.0, 1.0, 1.0);
-                
-                vec3 lighting = ambient + diffuse + specular;
-                
-                if (showTex && enableLighting) {
-                    gl_FragColor = vec4(texColor.rgb * lighting, texColor.a);
-                } else if (showTex) {
-                    gl_FragColor = texColor;
-                } else {
-                    gl_FragColor = vec4(color * lighting, 1.0);
-                }
-            }`;
+	void main()
+	{
+		vec4 texColor = texture2D(tex0, v_texCoord);
+		vec3 N = normalize(v_normal);
+		
+		if (numTextures > 1) {
+			// Get normal from normal map
+			vec3 normalMap = texture2D(tex1, v_texCoord).rgb * 2.0 - 1.0;
+			N = normalize(v_normal + normalMap);
+		}
+		
+		// Light calculations in world space
+		vec3 lightDir = normalize(lightPos - v_fragPos);
+		vec3 viewDir = normalize(viewPos - v_fragPos);
+		
+		// Diffuse
+		float diff = max(dot(N, lightDir), 0.0);
+		vec3 diffuse = diff * vec3(1.0, 1.0, 1.0);
+		
+		// Specular
+		vec3 reflectDir = reflect(-lightDir, N);
+		float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+		vec3 specular = specularIntensity * spec * vec3(1.0, 1.0, 1.0);
+		
+		vec3 lighting = ambient + diffuse + specular;
+		
+		if (showTex && enableLighting) {
+			gl_FragColor = vec4(texColor.rgb * lighting, texColor.a);
+		} else if (showTex) {
+			gl_FragColor = texColor;
+		} else {
+			gl_FragColor = vec4(color * lighting, 1.0);
+		}
+	}`;
 
 // Light direction parameters for Task 2
 var lightX = 1;
