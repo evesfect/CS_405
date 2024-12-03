@@ -346,10 +346,10 @@ var lightY = 1;
 const keys = {};
 function updateLightPos() {
 	const translationSpeed = 1;
-	if (keys['ArrowUp']) lightY -= translationSpeed;
-	if (keys['ArrowDown']) lightY += translationSpeed;
-	if (keys['ArrowRight']) lightX -= translationSpeed;
-	if (keys['ArrowLeft']) lightX += translationSpeed;
+	if (keys['ArrowUp']) lightY += translationSpeed;
+	if (keys['ArrowDown']) lightY -= translationSpeed;
+	if (keys['ArrowRight']) lightX += translationSpeed;
+	if (keys['ArrowLeft']) lightX -= translationSpeed;
 
 	meshDrawer.fixedLightPosition = [lightX, lightY, -10.0];
 }
