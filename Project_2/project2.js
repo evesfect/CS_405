@@ -67,7 +67,7 @@ class MeshDrawer {
 		this.enableLightingLoc = gl.getUniformLocation(this.prog, 'enableLighting');
 
 		// Fixed, stable light position for showroom effect
-		this.fixedLightPosition = [1.0, 1.0, 5.0];
+		this.fixedLightPosition = [0.0, 0.0, -10.0];
 
 		this.normalBuffer = gl.createBuffer();
 		this.normalLoc = gl.getAttribLocation(this.prog, 'normal');
@@ -304,7 +304,15 @@ const meshFS = `
 		if (numTextures > 1) {
 			// Get normal from normal map
 			vec3 normalMap = texture2D(tex1, v_texCoord).rgb * 2.0 - 1.0;
-			N = normalize(v_normal + normalMap);
+
+			// Create TBN matrix
+            vec3 T = normalize(vec3(1.0, 0.0, 0.0));
+            vec3 B = normalize(cross(N, T));
+            T = normalize(cross(B, N));
+            mat3 TBN = mat3(T, B, N);
+            
+            // Transform normal from tangent to world space
+            N = normalize(TBN * normalMap);
 		}
 		
 		// Light calculations in world space
@@ -342,6 +350,8 @@ function updateLightPos() {
 	if (keys['ArrowDown']) lightY += translationSpeed;
 	if (keys['ArrowRight']) lightX -= translationSpeed;
 	if (keys['ArrowLeft']) lightX += translationSpeed;
+
+	meshDrawer.fixedLightPosition = [lightX, lightY, -10.0];
 }
 
 function SetSpecularLight(param) {
